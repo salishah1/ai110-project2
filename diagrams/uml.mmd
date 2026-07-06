@@ -1,15 +1,60 @@
 classDiagram
-    %% Replace the placeholders below with your actual classes, attributes, methods, and relationships.
-    %% Keep this file updated so it matches your final implementation.
-
-    class ClassName {
-        +type attribute
-        +method() returnType
+    class Owner {
+        -owner_id : str
+        -name : str
+        -availability : dict
+        -pets : List~Pet~
+        +add_pet(pet: Pet) void
+        +remove_pet(pet_id: str) void
+        +get_free_slots(day: date) list
+        +get_all_tasks() List~Task~
+        +edit(fields: dict) void
     }
 
-    class AnotherClass {
-        +type attribute
-        +method() returnType
+    class Pet {
+        -pet_id : str
+        -name : str
+        -species : str
+        -care_needs : dict
+        -tasks : List~Task~
+        +add_task(task: Task) void
+        +remove_task(task_id: str) void
+        +add_condition(condition: str) void
+        +remove_condition(condition: str) void
+        +update_care_needs(key: str, value: any) void
+        +get_default_tasks() List~Task~
     }
 
-    ClassName --> AnotherClass : relationship
+    class Task {
+        -task_id : str
+        -pet_id : str
+        -description : str
+        -category : str
+        -duration : int
+        -priority : str
+        -time : time
+        -is_flexible : bool
+        -frequency : int
+        -completed : bool
+        +mark_complete() void
+        +generate_next_occurrence() Task
+        +edit(fields: dict) void
+    }
+
+    class Scheduler {
+        -date : date
+        -owner : Owner
+        -current_plan : List~Task~
+        -pending_conflicts : List~Task~
+        +expand_recurring(tasks: list, date: date) List~Task~
+        +sort_by_priority(tasks: list) List~Task~
+        +generate_daily_plan() List~Task~
+        +resolve_conflicts(plan: list) List~Task~
+        +apply_owner_time(task_id: str, new_time: time) void
+        +get_tasks_by_category(category: str) List~Task~
+        +get_plan_view() list
+    }
+
+    Owner "1" o-- "0..*" Pet : owns
+    Pet "1" *-- "0..*" Task : has
+    Scheduler "1" --> "1" Owner : reads from
