@@ -4,9 +4,9 @@
 
 You create an **Owner** — your name and your general availability (when you're free versus tied up with work or other responsibilities). You add **Pets** to that owner, each needing just a name and a species.
 
-The moment a Pet is created, its `care_needs` gets seeded automatically from a species lookup — a dog gets `needs_walks: True`, a cat gets `needs_litter: True`, every pet gets baseline supplies and a baseline vet-visit frequency. If the species isn't recognized, it falls back to a generic baseline instead. This copy happens once, right when the pet is created — nothing is typed in manually.
+The moment a Pet is created, its `care_needs` gets seeded automatically from a species lookup — a dog gets `needs_walks: True`, a cat gets `needs_litter: True`, a fish or bird gets `needs_habitat_cleaning: True` with its `habitat` set to `tank`/`cage`, and every pet gets baseline feeding (with a per-day frequency), supplies, and a vet-visit frequency. If the species isn't recognized, it falls back to a generic baseline instead. This copy happens once, right when the pet is created — nothing is typed in manually.
 
-From there, anything specific to *that individual pet* — an allergy, a health condition, extra supplies, grooming needs — gets added into that same `care_needs` dict, right alongside the seeded baseline. There's no separation between "this came from the species" and "this is specific to this pet" — it's all one flat, complete picture of everything that pet needs.
+From there, anything specific to *that individual pet* — an allergy, a health condition, extra supplies, grooming needs — gets added into that same `care_needs` dict, right alongside the seeded baseline. There's no separation between "this came from the species" and "this is specific to this pet" — it's all one flat, complete picture of everything that pet needs. When an individual fact is a list — extra supplies, for example — it stacks on top of the species baseline rather than replacing it; scalar facts (a `True`/`False`, a number) overwrite the baseline value.
 
 **Tasks are derived directly from that dict.** Every entry in `care_needs` — needs_walks, needs_litter, the supply list, the vet frequency, any health condition — becomes one suggested task. You review the suggestions and decide what actually gets added to that pet's real task list.
 
@@ -48,12 +48,13 @@ One pet — its identity, its full care profile, and its own tasks.
 | `pet_id` | str | Unique reference |
 | `name` | str | Display name |
 | `species` | str | Drives the seed lookup |
+| `breed` | str or None | Informational only — no effect on the seed lookup or merge |
 | `care_needs` | dict | Everything this pet needs — species baseline + individual facts, merged into one dict at creation |
 | `tasks` | list[Task] | This pet's own tasks |
 
-*Class-level:* `SPECIES_DEFAULTS`, `DEFAULT_FALLBACK` — used once, at creation, to seed `care_needs`.
+*Class-level:* `SPECIES_DEFAULTS` (dog, cat, fish, bird), `DEFAULT_FALLBACK` — used once, at creation, to seed `care_needs`. Species lookup is case-insensitive. Every species dict and the fallback share an identical set of keys, so `care_needs` has the same shape regardless of species.
 
-**Methods:** `add_task()`, `remove_task()`, `add_condition()`, `remove_condition()`, `update_care_needs()`, `get_default_tasks() → list[Task]` (derives one suggested task per relevant `care_needs` entry)
+**Methods:** `add_task()`, `remove_task()`, `add_condition()`, `remove_condition()`, `update_care_needs()`, `get_default_tasks() → list[Task]` (derives suggested tasks from the merged `care_needs` — feeding tasks per `feeding_frequency_per_day`, plus walks, litter, habitat cleaning, nail trims, supply restocks, vet visits, and health conditions as applicable)
 
 ### Owner
 Manages pets, exposes their combined workload.
@@ -112,3 +113,31 @@ You then pushed for the owner to be asked before things get moved, rather than t
 You pointed out that Task and `care_needs` should be directly connected — `care_needs` should hold *everything* about a pet, and tasks should be derived straight from it, one per entry. This was your original framing from early on, which got split into two separate mechanisms back in Phase 1.
 
 Fix: `SPECIES_DEFAULTS` (or `DEFAULT_FALLBACK`) now gets copied into `care_needs` **once, at Pet creation** — via `__post_init__`. After that, `care_needs` is one flat, self-contained dict with no distinction between species-derived facts and individual ones. `get_default_tasks()` no longer checks two separate sources — it loops through the now-unified `care_needs` and produces one task per relevant entry. `SPECIES_DEFAULTS`/`DEFAULT_FALLBACK` still exist as class-level lookups; they're just used once as seed data instead of being checked on every call.
+
+### Phase 5 — Species expansion & merge hardening
+Added **fish** and **bird** to `SPECIES_DEFAULTS` alongside dog and cat, and broadened the `care_needs` schema so those species' real needs are expressible:
+- New keys: `needs_feeding` + `feeding_frequency_per_day` (dogs/cats ~2×/day, fish 1×, birds 2×), `needs_habitat_cleaning` + `habitat` (fish `tank`, bird `cage`), and `needs_nail_trim` (kept species-level — genuinely species-true for dogs/cats/birds, not an individual trait). Fish/bird supplies filled out (`water conditioner`, `bedding`).
+- **Merge fix:** individual `care_needs` passed at creation now *combine* with the baseline for list values (extras stack) instead of overwriting the whole list; scalars still overwrite. Previously `supplies=["cat tree"]` would wipe out the seeded `["food", "litter"]`.
+- **Case-insensitive species lookup:** `"Dog"` now resolves to the dog defaults instead of silently falling through to `DEFAULT_FALLBACK`.
+- `get_default_tasks()` extended to emit feeding (one per daily feeding), habitat-cleaning, and nail-trim tasks from the new keys — keeping tasks derived straight from `care_needs`.
+
+### Phase 6 — Sugar glider fallback test + breed attribute
+The goal: verify `DEFAULT_FALLBACK` actually works in practice — not in isolation, but interacting correctly with `SPECIES_DEFAULTS`, the merge/override logic, and the rest of the classes end to end.
+
+**Why a sugar glider specifically.** Picked a real, permanent pet whose species is deliberately *not* one of the four built-out ones (dog, cat, fish, bird), and whose needs differ from all of them in almost every category — temperature control, a required companion animal, a highly specialized diet, and a completely different kind of habitat. The logic: if the fallback-plus-override mechanism can produce accurate, complete care data for something this different from what it was originally tested against, that's real evidence the mechanism generalizes to any future species, not just a coincidence of the four already hardcoded.
+
+**Research.** Catalogued everything a sugar glider owner actually manages: housing (tall cage, narrow bar spacing, nest pouch, climbing branches), temperature control (75–80°F), diet (specialized glider mix, calcium supplement, fed once in the evening), social needs (must have a companion, daily bonding time), enrichment (silent exercise wheel, chew toys), grooming (minimal, no nail trims needed), habitat cleaning, vet care (requires an exotic-animal specialist), legal/permit restrictions in some states, and a 10–15 year lifespan.
+
+**Sorting the facts.** Each item mapped to one of three buckets: already covered by existing keys (no walks, no litter, habitat cleaning, no nail trim — all correctly False/True in `DEFAULT_FALLBACK` by coincidence), needs a new key, or genuinely out of scope for `care_needs` (feeding *time* belongs on the Task itself, not the pet's facts; legal/permit info and lifespan aren't actionable and don't generate any task).
+
+**New schema-wide concepts.** Two genuinely new facts emerged that no existing key covered: needing a companion animal, and needing temperature control. Rather than treating these as one-off entries just for the glider, added `needs_companion` and `needs_temperature_control` to *every* species dict (dog, cat, fish, bird) and `DEFAULT_FALLBACK`, so every pet's `care_needs` keeps the same shape regardless of species — a requirement the merge logic and `get_default_tasks()` both depend on.
+
+**A misstep, caught and reverted.** At one point the sugar glider was given its own dedicated `SPECIES_DEFAULTS` entry. That defeated the actual purpose — the point was proving the fallback path produces accurate results for an uncommon pet, not building a fifth hardcoded species. Reverted: sugar glider stays deliberately absent from `SPECIES_DEFAULTS`, and its accuracy comes entirely from `DEFAULT_FALLBACK` plus individual `care_needs` overrides.
+
+**A side discovery.** Auditing all four species dicts while adding the two new keys surfaced an existing inaccuracy: bird's `needs_companion` and `needs_temperature_control` had defaulted to False. Corrected to True — pet birds are social flock animals and are sensitive to cold, so both facts are genuinely true for the species.
+
+**Breed attribute.** Added `breed` as a new field on `Pet` — informational only, with zero effect on the species lookup or merge logic. Considered and rejected building out a full breed-level defaults tier (a third layer beneath species): individual differences like an overweight dog needing more walks or less food already flow correctly through individual `care_needs`, the same mechanism used for every other individual fact — a breed tier would add real complexity (a breed lookup table that could never be complete) without solving a problem the existing two-tier system doesn't already handle.
+
+**Final schema additions.** Added `vet_notes` and `enrichment_note` as standard keys across every species dict and `DEFAULT_FALLBACK` (defaulted to None), since owners need an ongoing place to record individual notes for any pet, not just unusual ones. Confirmed `update_care_needs()` already handles editing either of these — or any other key — generically, so no new method was required.
+
+**Net result.** Every `care_needs` dict — dog, cat, fish, bird, and the fallback — now shares an identical set of keys. Eomuk the sugar glider (in `main.py`) demonstrates the fallback mechanism correctly producing complete, accurate care data for a real, uncommon pet with no dedicated species entry, which is the actual proof this part of the design works as intended.

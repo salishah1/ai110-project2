@@ -44,15 +44,98 @@ pip install -r requirements.txt
 
 ## 🖥️ Sample Output
 
-Paste a sample of your app's CLI or Streamlit output here so a reader can see what a generated plan looks like:
+Below is a real run of `python main.py` (the temporary CLI testing ground). It
+seeds owner Jordan with five pets — four common species plus Eomuk the sugar
+glider (deliberately not in `SPECIES_DEFAULTS`, to exercise `DEFAULT_FALLBACK`)
+— prints two pets' merged `care_needs`, generates the day, and resolves a
+scheduling conflict:
 
+```text
+$ python main.py
+=== Biscuit (dog) - care_needs ===
+  needs_walks: True
+  needs_litter: False
+  needs_habitat_cleaning: False
+  needs_nail_trim: True
+  needs_feeding: True
+  needs_companion: False
+  needs_temperature_control: False
+  feeding_frequency_per_day: 2
+  habitat: None
+  supplies: ['food', 'waste bags']
+  vet_frequency_days: 30
+  vet_notes: None
+  enrichment_note: None
+  health_conditions: ['heart condition']
+
+=== Eomuk (sugar glider) - care_needs ===
+  needs_walks: False
+  needs_litter: False
+  needs_habitat_cleaning: True
+  needs_nail_trim: False
+  needs_feeding: True
+  needs_companion: True
+  needs_temperature_control: True
+  feeding_frequency_per_day: 1
+  habitat: cage
+  supplies: ['food', 'glider diet mix', 'calcium supplement', 'pouch', 'climbing branches', 'exercise wheel']
+  vet_frequency_days: 180
+  vet_notes: requires exotic-animal vet
+  enrichment_note: daily bonding/pouch time
+
+Daily plan for Jordan - 2026-07-07
+Pets: Biscuit (dog), Mochi (cat), Nemo (fish), Kiwi (bird), Eomuk (sugar glider)
+------------------------------------------------
+  07:30 - Feed Biscuit breakfast (10 min) [priority: high]
+  07:45 - Give Biscuit heart medication (5 min) [priority: high]
+  08:00 - Feed Mochi breakfast (10 min) [priority: medium]
+  08:15 - Feed Nemo (5 min) [priority: medium]
+  08:30 - Feed Kiwi (5 min) [priority: medium]
+  09:00 - Take Biscuit out for a walk (30 min) [priority: high]
+  09:45 - Clean Mochi's litter box (10 min) [priority: low]
+  10:30 - Clean Eomuk's cage (20 min) [priority: medium]
+  11:30 - Buy a heating pad for Eomuk (20 min) [priority: low]
+  13:00 - Clean Nemo's tank (20 min) [priority: low]
+  14:00 - Vet appointment for Biscuit (monthly heart check) (45 min) [priority: high]
+  15:30 - Clean Kiwi's cage (20 min) [priority: medium]
+  18:00 - Feed Biscuit dinner (10 min) [priority: high]
+  18:15 - Give Biscuit heart medication (5 min) [priority: high]
+  18:30 - Feed Mochi dinner (10 min) [priority: medium]
+  20:00 - Feed Eomuk evening meal (15 min) [priority: high]
+  20:45 - Bonding/pouch time with Eomuk (20 min) [priority: medium]
+
+Needs your decision (conflicts):
+  - Grooming appointment for Mochi (wanted 13:45, couldn't fit)
+
+Owner reschedules 'Grooming appointment for Mochi' -> 16:30
+
+Updated plan for Jordan - 2026-07-07
+------------------------------------------------
+  07:30 - Feed Biscuit breakfast (10 min) [priority: high]
+  07:45 - Give Biscuit heart medication (5 min) [priority: high]
+  08:00 - Feed Mochi breakfast (10 min) [priority: medium]
+  08:15 - Feed Nemo (5 min) [priority: medium]
+  08:30 - Feed Kiwi (5 min) [priority: medium]
+  09:00 - Take Biscuit out for a walk (30 min) [priority: high]
+  09:45 - Clean Mochi's litter box (10 min) [priority: low]
+  10:30 - Clean Eomuk's cage (20 min) [priority: medium]
+  11:30 - Buy a heating pad for Eomuk (20 min) [priority: low]
+  13:00 - Clean Nemo's tank (20 min) [priority: low]
+  14:00 - Vet appointment for Biscuit (monthly heart check) (45 min) [priority: high]
+  15:30 - Clean Kiwi's cage (20 min) [priority: medium]
+  16:30 - Grooming appointment for Mochi (30 min) [priority: medium]
+  18:00 - Feed Biscuit dinner (10 min) [priority: high]
+  18:15 - Give Biscuit heart medication (5 min) [priority: high]
+  18:30 - Feed Mochi dinner (10 min) [priority: medium]
+  20:00 - Feed Eomuk evening meal (15 min) [priority: high]
+  20:45 - Bonding/pouch time with Eomuk (20 min) [priority: medium]
 ```
-# e.g.:
-# Daily plan for Biscuit (Golden Retriever):
-#   08:00 — Morning walk (30 min) [priority: high]
-#   09:00 — Feeding (10 min) [priority: high]
-#   ...
-```
+
+What this run demonstrates: species defaults vs. `DEFAULT_FALLBACK` (Eomuk), an
+individual `care_needs` override (Biscuit's heart condition → monthly vet + twice-daily
+meds), list-stacking merges (Eomuk's supplies), mixed priorities and fixed/flexible
+placement, and a priority-decided conflict resolved by the owner
+(`pending_conflicts` → `apply_owner_time`).
 
 ## 🧪 Testing PawPal+
 
