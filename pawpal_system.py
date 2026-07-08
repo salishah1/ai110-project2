@@ -365,6 +365,7 @@ class Scheduler:
     """
 
     def __init__(self, date: date, owner: Owner):
+        """Sets up the scheduler for one day and one owner (holds no tasks of its own)."""
         self.date = date
         self.owner = owner
         self.current_plan: List[Task] = []
@@ -394,6 +395,7 @@ class Scheduler:
         )
 
     def _to_dt(self, t: time) -> datetime:
+        """Combines a time-of-day with the plan's date into a full datetime."""
         return datetime.combine(self.date, t)
 
     def _within_free(self, start: datetime, end: datetime, free_windows) -> bool:
