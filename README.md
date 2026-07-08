@@ -210,12 +210,12 @@ no-double-booking guarantee, and recurrence via `next_due`.
 
 ## 📸 Demo Walkthrough
 
-Describe your app in numbered steps so a reader can follow along without watching a video:
+Run the app with `streamlit run app.py`, then:
 
-1. <!-- Describe this step -->
-2. <!-- Describe this step -->
-3. <!-- Describe this step -->
-4. <!-- Describe this step -->
-5. <!-- Add more steps as needed -->
+1. **Set the owner.** Enter the owner's name in the *Owner* section (defaults to "Jordan").
+2. **Add a pet.** In *Add a pet*, enter a name and species (dog/cat/fish/bird, or "other" + a custom species like sugar glider) and an optional breed. Leave *Seed suggested tasks* checked to auto-populate its care tasks from the species/fallback care profile.
+3. **Review & add tasks.** Expand a pet under *Your pets* to see its tasks, and use its *Add a task* form to add your own (description, duration, time, priority, and repeat interval).
+4. **Generate the daily plan.** In *Generate daily plan*, pick the date, optionally block off a busy window, and click **Generate plan**. The plan lists each task at its scheduled time — fixed tasks held exactly, flexible ones ordered by priority and slotted into free time.
+5. **Resolve conflicts.** If two fixed tasks collide, the loser is flagged; pick a new time and click **Reschedule** to slot it back in (the app refuses to double-book).
 
 **Screenshot or video** *(optional)*: <!-- Insert a screenshot or link to a demo video here -->

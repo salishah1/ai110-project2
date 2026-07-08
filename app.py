@@ -9,12 +9,12 @@ across Streamlit's reruns. (Daily-plan generation is wired in the next step.)
 Run with:  streamlit run app.py
 """
 
-from datetime import time
+from datetime import date, time
 
 import streamlit as st
 
 # --- Step 1: import the logic layer ---------------------------------------
-from pawpal_system import Owner, Pet, Task
+from pawpal_system import Owner, Pet, Task, Scheduler
 
 st.set_page_config(page_title="PawPal+", page_icon="🐾", layout="centered")
 
@@ -29,6 +29,7 @@ if "owner" not in st.session_state:
     st.session_state.owner = Owner(owner_id="owner_1", name="Jordan")
     st.session_state.pet_counter = 0
     st.session_state.task_counter = 0
+    st.session_state.scheduler = None
 
 owner = st.session_state.owner
 
@@ -136,5 +137,61 @@ for pet in owner.pets:
                 st.rerun()
 
 st.divider()
-st.caption("Next step: wire the **Generate daily plan** action to Scheduler "
-           "so these tasks get organized into a schedule.")
+
+# --- Generate the daily plan (wire the UI to Scheduler) -------------------
+st.header("📅 Generate daily plan")
+
+c1, c2, c3 = st.columns(3)
+with c1:
+    plan_date = st.date_input("Plan for", value=date.today())
+with c2:
+    busy_start = st.time_input("Busy from", value=time(12, 0))
+with c3:
+    busy_end = st.time_input("Busy until", value=time(13, 0))
+use_busy = st.checkbox("Block off this busy time")
+
+if st.button("Generate plan", type="primary", disabled=not owner.pets):
+    # Owner availability is a constraint the Scheduler works around.
+    if use_busy and busy_start < busy_end:
+        owner.availability = {plan_date.strftime("%A").lower(): [(busy_start, busy_end)]}
+    else:
+        owner.availability = {}
+    scheduler = Scheduler(date=plan_date, owner=owner)
+    scheduler.generate_daily_plan()
+    st.session_state.scheduler = scheduler
+
+scheduler = st.session_state.scheduler
+if scheduler is not None:
+    st.subheader(f"Plan for {owner.name} — {scheduler.date.isoformat()}")
+    if scheduler.current_plan:
+        st.table([
+            {
+                "time": scheduler.scheduled_times.get(t.task_id, t.time).strftime("%H:%M"),
+                "task": t.description,
+                "min": t.duration,
+                "priority": t.priority,
+                "type": "flexible" if t.is_flexible else "fixed",
+            }
+            for t in scheduler.current_plan
+        ])
+        st.caption(
+            "Why this plan: fixed-time tasks are placed first at their exact "
+            "time; flexible tasks are ordered by priority and slotted into the "
+            "nearest open time around them and your busy blocks."
+        )
+    else:
+        st.info("Nothing was scheduled (no tasks due, or none could be placed).")
+
+    if scheduler.pending_conflicts:
+        st.warning("These tasks collided and need your decision:")
+        for t in list(scheduler.pending_conflicts):
+            col_a, col_b = st.columns([3, 2])
+            with col_a:
+                st.write(f"**{t.description}** — wanted {t.time.strftime('%H:%M')}")
+            with col_b:
+                new_time = st.time_input("New time", value=t.time, key=f"newt_{t.task_id}")
+                if st.button("Reschedule", key=f"resch_{t.task_id}"):
+                    if scheduler.apply_owner_time(t.task_id, new_time):
+                        st.rerun()
+                    else:
+                        st.error("That time is also busy/taken — pick another.")

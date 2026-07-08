@@ -27,8 +27,7 @@ The scheduler considers fixed vs. flexible time (a task with `is_flexible=False`
 
 **b. Tradeoffs**
 
-- Describe one tradeoff your scheduler makes.
-- Why is that tradeoff reasonable for this scenario?
+When two fixed-time tasks genuinely collide, the scheduler does **not** try to auto-resolve it — it keeps the higher-priority task in its slot, flags the loser in `pending_conflicts`, and waits for the owner to pick a new time (`apply_owner_time`). The tradeoff is autonomy for correctness: the app can't magically pick a good replacement time because it has no context about the person's actual day. Handing the decision back — rather than guessing and silently double-booking — is the safer, more trustworthy behavior for a real owner.
 
 ---
 
@@ -36,13 +35,11 @@ The scheduler considers fixed vs. flexible time (a task with `is_flexible=False`
 
 **a. How you used AI**
 
-- How did you use AI tools during this project (for example: design brainstorming, debugging, refactoring)?
-- What kinds of prompts or questions were most helpful?
+I used AI throughout: brainstorming the class breakdown, pressure-testing the design against concrete pet examples (an overweight cat, an allergy, a sugar glider), generating the class skeleton, implementing the scheduling logic, writing the tests, and hunting for bugs before I trusted it. The most helpful prompts were concrete ("is this a *fact* about the pet or a *task* on a schedule?"), scenario-driven ("run this design through a busy day"), and adversarial ("what's missing or broken before I write tests?").
 
 **b. Judgment and verification**
 
-- Describe one moment where you did not accept an AI suggestion as-is.
-- How did you evaluate or verify what the AI suggested?
+Several times I didn't take a suggestion as-is. When the species defaults got split into a separate lookup, I pushed back and unified everything into `care_needs`. When a suggested fix for the recurring-task bug only patched `get_default_tasks()`, I moved the guard onto `Task.__post_init__` so it held everywhere. I even caught one of my own tests encoding a wrong assumption about recurrence. I verified by actually running the code — the `main.py` CLI demo, `python -m pytest`, and Streamlit's `AppTest` — and by tracing specific cases (the priority-decided conflict, the busy-block nudge) against the output rather than trusting explanations.
 
 ---
 
@@ -50,13 +47,11 @@ The scheduler considers fixed vs. flexible time (a task with `is_flexible=False`
 
 **a. What you tested**
 
-- What behaviors did you test?
-- Why were these tests important?
+Two basic tests cover task completion (`mark_complete`) and task addition (`Pet.add_task` growing the list). A fuller suite covers the scheduling logic: `care_needs` merging (species defaults, fallback for unknown species, list-stacking, scalar override, case-insensitive lookup), priority sorting, fixed-exact vs. flexible-nudged placement, owner availability, conflict detection keeping the higher priority, `apply_owner_time`'s no-double-booking guarantee, and recurrence via `next_due` (due-date filtering, completion regenerating the next occurrence, anchoring to the due date). These matter because scheduling correctness is the app's whole promise — if recurrence, placement, or conflicts are wrong, the plan is wrong.
 
 **b. Confidence**
 
-- How confident are you that your scheduler works correctly?
-- What edge cases would you test next if you had more time?
+Fairly confident in the backend: 21 tests pass, and I exercised the flow end to end through both the CLI and the Streamlit app. If I had more time I'd test: multiple busy blocks in one day, a task longer than any free window, tasks near the midnight boundary, and many colliding fixed tasks at once — plus a multi-day run to confirm recurring tasks advance exactly on their `next_due`.
 
 ---
 
@@ -64,12 +59,12 @@ The scheduler considers fixed vs. flexible time (a task with `is_flexible=False`
 
 **a. What went well**
 
-- What part of this project are you most satisfied with?
+I'm most satisfied with `care_needs` as a single source of truth and the fact that I kept catching and correcting my own mistakes — the split lookup, the flexible-task-with-no-time flaw, and the recurring-task due-date bug — rather than defending them. Making recurrence actually work (not just "shows every day") felt like the design becoming real.
 
 **b. What you would improve**
 
-- If you had another iteration, what would you improve or redesign?
+I'd read the full assignment spec before designing so I didn't restructure twice, and I'd wire the UI earlier to catch integration issues sooner. In the code, completed tasks accumulate in a pet's list forever (they're filtered from the plan but never removed) — I'd add history/purge handling — and flexible placement only nudges forward, never earlier, which I'd make smarter.
 
 **c. Key takeaway**
 
-- What is one important thing you learned about designing systems or working with AI on this project?
+The best decisions came from holding two lenses at once — clean, non-redundant code *and* a real pet owner's experience. And working with AI, the real skill is verification: it's a fast collaborator, but the recurring-task bug slipped through plausible-looking code and only surfaced because I ran it and wrote tests. Trust, but check.
