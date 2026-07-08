@@ -78,6 +78,10 @@ def build_demo_owner() -> Owner:
     # Monthly heart check — a fixed appointment that must hold its time.
     biscuit.add_task(task("t11", f"Vet appointment for {biscuit.name} (monthly heart check)", "vet", 45, "high", time(14, 0), flexible=False, freq=30))
     kiwi.add_task(task("t12", f"Clean {kiwi.name}'s cage", "grooming", 20, "medium", time(15, 30)))
+    # Midday playtime anchored at noon — but the owner is busy 12:00-13:00
+    # (see availability in main), so the Scheduler nudges it past the busy
+    # block into the afternoon.
+    biscuit.add_task(task("t19", f"Midday playtime with {biscuit.name}", "enrichment", 20, "low", time(12, 0)))
     # A groomer booking that collides with the fixed vet appointment above.
     # Both are fixed, but grooming is only MEDIUM priority vs the vet's HIGH —
     # and grooming is even booked slightly EARLIER (13:45). The Scheduler still
@@ -116,6 +120,18 @@ def main() -> None:
     print_care_needs(eomuk)
     print()
 
+    # The owner has a busy block midday (a meeting/lunch), keyed to today's
+    # weekday — the Scheduler treats it as unavailable time.
+    owner.availability = {today.strftime("%A").lower(): [(time(12, 0), time(13, 0))]}
+
+    def fmt_windows(windows):
+        return [(s.strftime("%H:%M"), e.strftime("%H:%M")) for s, e in windows]
+
+    busy = owner.availability.get(today.strftime("%A").lower(), [])
+    print(f"Owner busy today:  {fmt_windows(busy)}")
+    print(f"Owner free windows: {fmt_windows(owner.get_free_slots(today))}")
+    print()
+
     scheduler = Scheduler(date=today, owner=owner)
     scheduler.generate_daily_plan()
 
@@ -131,16 +147,25 @@ def main() -> None:
             print(f"  - {task.description} (wanted {task.time.strftime('%H:%M')}, couldn't fit)")
 
         # The owner steps in and picks a new time for the flagged task —
-        # apply_owner_time() slots it back into the plan.
+        # apply_owner_time() slots it back in (and refuses to double-book).
         conflict = scheduler.pending_conflicts[0]
         new_time = time(16, 30)
         print(f"\nOwner reschedules '{conflict.description}' -> {new_time.strftime('%H:%M')}")
-        scheduler.apply_owner_time(conflict.task_id, new_time)
+        moved = scheduler.apply_owner_time(conflict.task_id, new_time)
+        print(f"  {'moved into the plan' if moved else 'new time also busy - still pending'}")
 
         print("\nUpdated plan for {} - {}".format(owner.name, today.isoformat()))
         print("-" * 48)
         for line in scheduler.get_plan_view():
             print(f"  {line}")
+
+    # --- Recurrence: completing a recurring task regenerates the next one ---
+    walk = next(t for t in biscuit.tasks if t.category == "walk")
+    print(f"\nComplete '{walk.description}' (repeats every {walk.frequency} day)...")
+    nxt = biscuit.complete_task(walk.task_id, on_date=today)
+    print(f"  original marked done: {walk.completed}")
+    print(f"  next occurrence '{nxt.task_id}' generated, next_due: {nxt.next_due}")
+    print("  (next_due is tomorrow, so it would NOT show in today's plan)")
 
 
 if __name__ == "__main__":

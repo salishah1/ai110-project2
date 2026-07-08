@@ -36,9 +36,10 @@ A single pet-care activity — the smallest unit in the system.
 | `time` | time | Always set — the anchor/target time |
 | `is_flexible` | bool | False = must happen exactly at `time`. True = anchored there, but Scheduler may shift it |
 | `frequency` | int or None | Days between repeats; None = one-time |
+| `next_due` | date or None | Date this occurrence is due; None = due any day (undated) |
 | `completed` | bool | Done or not |
 
-**Methods:** `mark_complete()`, `generate_next_occurrence() → Task`, `edit(**fields)`
+**Methods:** `mark_complete()`, `generate_next_occurrence(completed_on=None) → Task or None` (dates the next occurrence `frequency` days after this one's `next_due`, or after `completed_on`), `edit(**fields)`
 
 ### Pet
 One pet — its identity, its full care profile, and its own tasks.
@@ -54,7 +55,7 @@ One pet — its identity, its full care profile, and its own tasks.
 
 *Class-level:* `SPECIES_DEFAULTS` (dog, cat, fish, bird), `DEFAULT_FALLBACK` — used once, at creation, to seed `care_needs`. Species lookup is case-insensitive. Every species dict and the fallback share an identical set of keys, so `care_needs` has the same shape regardless of species.
 
-**Methods:** `add_task()`, `remove_task()`, `add_condition()`, `remove_condition()`, `update_care_needs()`, `get_default_tasks() → list[Task]` (derives suggested tasks from the merged `care_needs` — feeding tasks per `feeding_frequency_per_day`, plus walks, litter, habitat cleaning, nail trims, supply restocks, vet visits, and health conditions as applicable)
+**Methods:** `add_task()`, `remove_task()`, `complete_task(task_id, on_date=None) → Task or None` (marks done and, if recurring, generates + adds the next occurrence), `add_condition()`, `remove_condition()`, `update_care_needs()`, `get_default_tasks() → list[Task]` (derives suggested tasks from the merged `care_needs` — feeding tasks per `feeding_frequency_per_day`, plus walks, litter, habitat cleaning, nail trims, supply restocks, vet visits, and health conditions as applicable)
 
 ### Owner
 Manages pets, exposes their combined workload.
@@ -78,7 +79,7 @@ The brain. Not a dataclass — almost entirely behavior, little data of its own.
 | `current_plan` | list[Task] | Cached result of the last generated plan |
 | `pending_conflicts` | list[Task] | Tasks needing the owner's decision |
 
-**Methods:** `expand_recurring()`, `sort_by_priority()`, `generate_daily_plan() → list[Task]`, `resolve_conflicts()` (detects, doesn't auto-fix), `apply_owner_time(task_id, new_time)`, `get_tasks_by_category()`, `get_plan_view()`
+**Methods:** `expand_recurring(tasks, date)` (returns tasks due on `date` — incomplete and `next_due <= date`), `sort_by_priority()`, `generate_daily_plan() → list[Task]`, `resolve_conflicts(placements) → list[Task]` (given `(start, end, task)` placements in priority order, returns the overlap losers; detects, doesn't auto-fix), `apply_owner_time(task_id, new_time) → bool` (slots the task back in, or returns False and leaves it pending if the new time also collides — never double-books), `get_tasks_by_category()`, `get_plan_view()`
 
 ### How the classes connect
 - **Owner owns Pets** (one owner, many pets)
@@ -138,6 +139,17 @@ The goal: verify `DEFAULT_FALLBACK` actually works in practice — not in isolat
 
 **Breed attribute.** Added `breed` as a new field on `Pet` — informational only, with zero effect on the species lookup or merge logic. Considered and rejected building out a full breed-level defaults tier (a third layer beneath species): individual differences like an overweight dog needing more walks or less food already flow correctly through individual `care_needs`, the same mechanism used for every other individual fact — a breed tier would add real complexity (a breed lookup table that could never be complete) without solving a problem the existing two-tier system doesn't already handle.
 
+Note: The breed issue and the misstep of adding the sugar glider to secies default was entirely AI's mistake. It wasn't something I had considered doing, but rather was AI jumping the gun. I rejected and corrected it upon seeing it and redirected it to what I wanted the system design to be like. 
+
 **Final schema additions.** Added `vet_notes` and `enrichment_note` as standard keys across every species dict and `DEFAULT_FALLBACK` (defaulted to None), since owners need an ongoing place to record individual notes for any pet, not just unusual ones. Confirmed `update_care_needs()` already handles editing either of these — or any other key — generically, so no new method was required.
 
 **Net result.** Every `care_needs` dict — dog, cat, fish, bird, and the fallback — now shares an identical set of keys. Eomuk the sugar glider (in `main.py`) demonstrates the fallback mechanism correctly producing complete, accurate care data for a real, uncommon pet with no dedicated species entry, which is the actual proof this part of the design works as intended.
+
+### Phase 7 — Real recurrence, completion flow, and scheduler hardening
+Tightened the behaviors that were still stubbed-simple after the first implementation, in preparation for writing tests:
+
+- **Real recurrence.** Added a `next_due` (date) field to `Task`. `expand_recurring()` now returns only incomplete tasks whose `next_due` is on or before the planning date (`next_due=None` = undated, due any day). This is what makes daily-vs-weekly actually work — a weekly task done today won't reappear until its regenerated occurrence's `next_due` arrives.
+- **Completion → next occurrence.** `generate_next_occurrence(completed_on=None)` now dates the next task `frequency` days after this one's `next_due` (or after `completed_on`). New `Pet.complete_task(task_id, on_date=None)` marks a task done and, if it recurs, generates + adds the next occurrence — wiring up the "check it off and the next one appears" behavior end to end. (`mark_complete()` stays a simple flag-flip; the regeneration lives on `Pet`, which owns the task list.)
+- **`resolve_conflicts()` is now a real detector.** It takes `(start, end, task)` placements in priority order and returns the overlap losers (earlier/higher-priority tasks keep their slot). `generate_daily_plan()` uses it for fixed-task collisions instead of the old inline check, so conflict detection is independently testable.
+- **`apply_owner_time()` won't double-book.** It now validates the owner's chosen time against availability and the current plan; if the new time also collides it returns False and leaves the task in `pending_conflicts` rather than silently overlapping something.
+- **Owner availability exercised.** Fixed tasks that fall in the owner's busy blocks are flagged; flexible tasks nudge past them. `main.py` now sets a midday busy block to demonstrate this.

@@ -31,20 +31,25 @@ class Task:
     time: time  # anchor/target time — always set, whether fixed or flexible
     is_flexible: bool  # False = must occur exactly at `time`; True = Scheduler may shift it
     frequency: Optional[int] = None  # days between repeats; None = one-time
+    next_due: Optional[date] = None  # date this occurrence is due; None = due any day
     completed: bool = False
 
     def mark_complete(self) -> None:
         """Marks this task as done."""
         self.completed = True
 
-    def generate_next_occurrence(self) -> "Task":
+    def generate_next_occurrence(self, completed_on: Optional[date] = None) -> Optional["Task"]:
         """
-        For recurring tasks (frequency is not None), builds and returns
-        the next Task instance for the following cycle (fresh, not completed).
-        Returns None for one-time tasks.
+        For recurring tasks (frequency is not None), builds and returns the
+        next Task instance for the following cycle (fresh, not completed),
+        dated `frequency` days after this one's due date (or after
+        `completed_on` if this occurrence had no due date). Returns None for
+        one-time tasks.
         """
         if self.frequency is None:
             return None
+        base = self.next_due if self.next_due is not None else completed_on
+        upcoming = base + timedelta(days=self.frequency) if base is not None else None
         return Task(
             task_id=f"{self.task_id}-next",
             pet_id=self.pet_id,
@@ -55,6 +60,7 @@ class Task:
             time=self.time,
             is_flexible=self.is_flexible,
             frequency=self.frequency,
+            next_due=upcoming,
             completed=False,
         )
 
@@ -191,6 +197,22 @@ class Pet:
     def remove_task(self, task_id: str) -> None:
         """Removes a task from this pet's list by ID."""
         self.tasks = [t for t in self.tasks if t.task_id != task_id]
+
+    def complete_task(self, task_id: str, on_date: Optional[date] = None) -> Optional[Task]:
+        """
+        Marks a task complete. If it recurs (frequency set), generates its
+        next occurrence, adds it to this pet's list, and returns it — this is
+        how "check it off and the next one appears" works. Returns None if the
+        task is one-time or not found.
+        """
+        task = next((t for t in self.tasks if t.task_id == task_id), None)
+        if task is None:
+            return None
+        task.mark_complete()
+        next_task = task.generate_next_occurrence(completed_on=on_date)
+        if next_task is not None:
+            self.add_task(next_task)
+        return next_task
 
     def add_condition(self, condition: str) -> None:
         """Adds a health condition into care_needs."""
@@ -353,11 +375,16 @@ class Scheduler:
 
     def expand_recurring(self, tasks: List[Task], date: date) -> List[Task]:
         """
-        Determines which tasks are due on the given date. (The current data
-        model has no per-task next-due date, so this treats every incomplete
-        task — one-time and recurring alike — as due today.)
+        Determines which tasks are due on the given date: incomplete tasks
+        whose next_due is on or before that date. A task with next_due=None is
+        treated as due any day (undated). This is what makes daily-vs-weekly
+        recurrence real — a weekly task done today won't reappear until its
+        regenerated occurrence's next_due arrives.
         """
-        return [t for t in tasks if not t.completed]
+        return [
+            t for t in tasks
+            if not t.completed and (t.next_due is None or t.next_due <= date)
+        ]
 
     def sort_by_priority(self, tasks: List[Task]) -> List[Task]:
         """Orders tasks so higher-priority (and then earlier) ones come first."""
@@ -369,26 +396,26 @@ class Scheduler:
     def _to_dt(self, t: time) -> datetime:
         return datetime.combine(self.date, t)
 
-    def _slot_is_free(self, start: datetime, dur: timedelta, free_windows, placed) -> bool:
-        end = start + dur
-        within_free = any(
+    def _within_free(self, start: datetime, end: datetime, free_windows) -> bool:
+        """True if [start, end] fits entirely inside one of the owner's free windows."""
+        return any(
             self._to_dt(fs) <= start and end <= self._to_dt(fe)
             for fs, fe in free_windows
         )
-        if not within_free:
-            return False
-        overlaps = any(
-            not (end <= s or start >= e) for s, e, _ in placed
-        )
-        return not overlaps
+
+    def _overlaps(self, start: datetime, end: datetime, placed) -> bool:
+        """True if [start, end] overlaps any already-placed (start, end, task)."""
+        return any(not (end <= s or start >= e) for s, e, _ in placed)
 
     def generate_daily_plan(self) -> List[Task]:
         """
         Pulls all tasks via self.owner.get_all_tasks(), keeps those due today,
-        places fixed-time (is_flexible=False) tasks exactly, fits flexible
-        tasks near their anchor inside the owner's free slots, and stores the
-        result in self.current_plan. Anything that can't be placed goes to
-        self.pending_conflicts.
+        then places them: fixed-time (is_flexible=False) tasks must land on
+        their exact anchor inside the owner's free time; flexible tasks are
+        nudged forward from their anchor into the next open slot. Fixed tasks
+        that fall in busy time or collide with a higher-priority fixed task,
+        plus flexible tasks with nowhere to go, are set aside in
+        self.pending_conflicts for the owner to resolve.
         """
         self.pending_conflicts = []
         self.scheduled_times = {}
@@ -396,57 +423,96 @@ class Scheduler:
         todays = self.expand_recurring(self.owner.get_all_tasks(), self.date)
         ordered = self.sort_by_priority(todays)
         free_windows = self.owner.get_free_slots(self.date)
-
-        placed = []  # (start_dt, end_dt, task)
         day_end = self._to_dt(time(23, 59))
         step = timedelta(minutes=15)
 
-        for task in ordered:
-            dur = timedelta(minutes=task.duration)
-            anchor = self._to_dt(task.time)
-
-            if not task.is_flexible:
-                # Must land exactly at its anchor, or it's a conflict.
-                if self._slot_is_free(anchor, dur, free_windows, placed):
-                    placed.append((anchor, anchor + dur, task))
-                    self.scheduled_times[task.task_id] = task.time
-                else:
-                    self.pending_conflicts.append(task)
+        # 1) Fixed tasks demand their exact anchor. Drop any that fall in the
+        #    owner's busy time, then let resolve_conflicts detect overlaps
+        #    among the rest (higher-priority/earlier ones keep their slot).
+        fixed_candidates = []
+        for t in ordered:
+            if t.is_flexible:
                 continue
+            start = self._to_dt(t.time)
+            end = start + timedelta(minutes=t.duration)
+            if self._within_free(start, end, free_windows):
+                fixed_candidates.append((start, end, t))
+            else:
+                self.pending_conflicts.append(t)
 
-            # Flexible: try the anchor, then scan forward until end of day.
+        conflict_ids = {t.task_id for t in self.resolve_conflicts(fixed_candidates)}
+        placed = []  # (start_dt, end_dt, task)
+        for start, end, t in fixed_candidates:
+            if t.task_id in conflict_ids:
+                self.pending_conflicts.append(t)
+            else:
+                placed.append((start, end, t))
+                self.scheduled_times[t.task_id] = start.time()
+
+        # 2) Flexible tasks fit around what's placed, nudging forward from
+        #    their anchor until a free, non-overlapping slot is found.
+        for t in ordered:
+            if not t.is_flexible:
+                continue
+            dur = timedelta(minutes=t.duration)
+            cursor = self._to_dt(t.time)
             chosen = None
-            cursor = anchor
             while cursor + dur <= day_end:
-                if self._slot_is_free(cursor, dur, free_windows, placed):
+                if self._within_free(cursor, cursor + dur, free_windows) and not self._overlaps(cursor, cursor + dur, placed):
                     chosen = cursor
                     break
                 cursor += step
             if chosen is not None:
-                placed.append((chosen, chosen + dur, task))
-                self.scheduled_times[task.task_id] = chosen.time()
+                placed.append((chosen, chosen + dur, t))
+                self.scheduled_times[t.task_id] = chosen.time()
             else:
-                self.pending_conflicts.append(task)
+                self.pending_conflicts.append(t)
 
         placed.sort(key=lambda p: p[0])
         self.current_plan = [t for _, _, t in placed]
         return self.current_plan
 
-    def resolve_conflicts(self, plan: List[Task]) -> List[Task]:
+    def resolve_conflicts(self, placements: list) -> List[Task]:
         """
-        Detects (does not auto-fix) collisions. Returns the tasks that need
-        the owner's decision — the ones set aside in pending_conflicts.
+        Detects (does not auto-fix) time collisions among placed tasks. Given
+        candidate (start, end, task) placements in priority order, returns the
+        tasks that overlap an earlier (higher-priority) placement — the losers
+        that need the owner's decision. Earlier/higher-priority tasks keep
+        their slot; nothing is moved here.
         """
-        return self.pending_conflicts
+        kept = []
+        conflicts = []
+        for start, end, task in placements:
+            if any(not (end <= s or start >= e) for s, e, _ in kept):
+                conflicts.append(task)
+            else:
+                kept.append((start, end, task))
+        return conflicts
 
-    def apply_owner_time(self, task_id: str, new_time: time) -> None:
+    def apply_owner_time(self, task_id: str, new_time: time) -> bool:
         """
-        Applies the owner's chosen time to a previously flagged task and moves
-        it back into current_plan, re-sorted by scheduled time.
+        Applies the owner's chosen time to a previously flagged task. If the
+        new time is free (inside availability and not overlapping the current
+        plan), the task is slotted back into current_plan and True is returned.
+        If the new time also collides, the task stays in pending_conflicts and
+        False is returned — the Scheduler never double-books.
         """
         task = next((t for t in self.pending_conflicts if t.task_id == task_id), None)
         if task is None:
-            return
+            return False
+
+        start = self._to_dt(new_time)
+        end = start + timedelta(minutes=task.duration)
+        free_windows = self.owner.get_free_slots(self.date)
+        placed = [
+            (self._to_dt(self.scheduled_times[t.task_id]),
+             self._to_dt(self.scheduled_times[t.task_id]) + timedelta(minutes=t.duration),
+             t)
+            for t in self.current_plan
+        ]
+        if not self._within_free(start, end, free_windows) or self._overlaps(start, end, placed):
+            return False
+
         self.pending_conflicts.remove(task)
         task.time = new_time
         self.scheduled_times[task_id] = new_time
@@ -454,6 +520,7 @@ class Scheduler:
         self.current_plan.sort(
             key=lambda t: self.scheduled_times.get(t.task_id, t.time)
         )
+        return True
 
     def get_tasks_by_category(self, category: str) -> List[Task]:
         """Filters current_plan down to a single category."""

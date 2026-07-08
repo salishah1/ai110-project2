@@ -20,6 +20,7 @@ classDiagram
         -tasks : List~Task~
         +add_task(task: Task) void
         +remove_task(task_id: str) void
+        +complete_task(task_id: str, on_date: date) Task
         +add_condition(condition: str) void
         +remove_condition(condition: str) void
         +update_care_needs(key: str, value: any) void
@@ -36,9 +37,10 @@ classDiagram
         -time : time
         -is_flexible : bool
         -frequency : int
+        -next_due : date
         -completed : bool
         +mark_complete() void
-        +generate_next_occurrence() Task
+        +generate_next_occurrence(completed_on: date) Task
         +edit(fields: dict) void
     }
 
@@ -50,8 +52,8 @@ classDiagram
         +expand_recurring(tasks: list, date: date) List~Task~
         +sort_by_priority(tasks: list) List~Task~
         +generate_daily_plan() List~Task~
-        +resolve_conflicts(plan: list) List~Task~
-        +apply_owner_time(task_id: str, new_time: time) void
+        +resolve_conflicts(placements: list) List~Task~
+        +apply_owner_time(task_id: str, new_time: time) bool
         +get_tasks_by_category(category: str) List~Task~
         +get_plan_view() list
     }

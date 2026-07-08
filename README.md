@@ -47,8 +47,8 @@ pip install -r requirements.txt
 Below is a real run of `python main.py` (the temporary CLI testing ground). It
 seeds owner Jordan with five pets — four common species plus Eomuk the sugar
 glider (deliberately not in `SPECIES_DEFAULTS`, to exercise `DEFAULT_FALLBACK`)
-— prints two pets' merged `care_needs`, generates the day, and resolves a
-scheduling conflict:
+— prints two pets' merged `care_needs`, honors the owner's busy hours, generates
+the day, resolves a scheduling conflict, and regenerates a recurring task:
 
 ```text
 $ python main.py
@@ -83,6 +83,9 @@ $ python main.py
   vet_notes: requires exotic-animal vet
   enrichment_note: daily bonding/pouch time
 
+Owner busy today:  [('12:00', '13:00')]
+Owner free windows: [('00:00', '12:00'), ('13:00', '23:59')]
+
 Daily plan for Jordan - 2026-07-07
 Pets: Biscuit (dog), Mochi (cat), Nemo (fish), Kiwi (bird), Eomuk (sugar glider)
 ------------------------------------------------
@@ -95,7 +98,8 @@ Pets: Biscuit (dog), Mochi (cat), Nemo (fish), Kiwi (bird), Eomuk (sugar glider)
   09:45 - Clean Mochi's litter box (10 min) [priority: low]
   10:30 - Clean Eomuk's cage (20 min) [priority: medium]
   11:30 - Buy a heating pad for Eomuk (20 min) [priority: low]
-  13:00 - Clean Nemo's tank (20 min) [priority: low]
+  13:00 - Midday playtime with Biscuit (20 min) [priority: low]
+  13:30 - Clean Nemo's tank (20 min) [priority: low]
   14:00 - Vet appointment for Biscuit (monthly heart check) (45 min) [priority: high]
   15:30 - Clean Kiwi's cage (20 min) [priority: medium]
   18:00 - Feed Biscuit dinner (10 min) [priority: high]
@@ -108,6 +112,7 @@ Needs your decision (conflicts):
   - Grooming appointment for Mochi (wanted 13:45, couldn't fit)
 
 Owner reschedules 'Grooming appointment for Mochi' -> 16:30
+  moved into the plan
 
 Updated plan for Jordan - 2026-07-07
 ------------------------------------------------
@@ -120,7 +125,8 @@ Updated plan for Jordan - 2026-07-07
   09:45 - Clean Mochi's litter box (10 min) [priority: low]
   10:30 - Clean Eomuk's cage (20 min) [priority: medium]
   11:30 - Buy a heating pad for Eomuk (20 min) [priority: low]
-  13:00 - Clean Nemo's tank (20 min) [priority: low]
+  13:00 - Midday playtime with Biscuit (20 min) [priority: low]
+  13:30 - Clean Nemo's tank (20 min) [priority: low]
   14:00 - Vet appointment for Biscuit (monthly heart check) (45 min) [priority: high]
   15:30 - Clean Kiwi's cage (20 min) [priority: medium]
   16:30 - Grooming appointment for Mochi (30 min) [priority: medium]
@@ -129,13 +135,20 @@ Updated plan for Jordan - 2026-07-07
   18:30 - Feed Mochi dinner (10 min) [priority: medium]
   20:00 - Feed Eomuk evening meal (15 min) [priority: high]
   20:45 - Bonding/pouch time with Eomuk (20 min) [priority: medium]
+
+Complete 'Take Biscuit out for a walk' (repeats every 1 day)...
+  original marked done: True
+  next occurrence 't6-next' generated, next_due: 2026-07-08
+  (next_due is tomorrow, so it would NOT show in today's plan)
 ```
 
 What this run demonstrates: species defaults vs. `DEFAULT_FALLBACK` (Eomuk), an
-individual `care_needs` override (Biscuit's heart condition → monthly vet + twice-daily
-meds), list-stacking merges (Eomuk's supplies), mixed priorities and fixed/flexible
-placement, and a priority-decided conflict resolved by the owner
-(`pending_conflicts` → `apply_owner_time`).
+individual `care_needs` override (Biscuit's heart condition -> monthly vet + twice-daily
+meds), list-stacking merges (Eomuk's supplies), owner **availability** (the noon
+playtime nudged past the 12:00-13:00 busy block), mixed priorities and fixed/flexible
+placement, a priority-decided conflict resolved by the owner (`pending_conflicts` ->
+`apply_owner_time`), and **recurrence** (completing the daily walk regenerates it for
+tomorrow via `next_due`).
 
 ## 🧪 Testing PawPal+
 
@@ -155,14 +168,13 @@ Sample test output:
 
 ## 📐 Smarter Scheduling
 
-> Fill in once you've implemented scheduling logic.
-
 | Feature | Method(s) | Notes |
 |---------|-----------|-------|
-| Task sorting | | e.g., by priority, duration |
-| Filtering | | e.g., skip tasks if time runs out |
-| Conflict handling | | e.g., overlapping time slots |
-| Recurring tasks | | e.g., daily vs. weekly |
+| Task sorting | `Scheduler.sort_by_priority` | Orders by priority (high > medium > low), then earlier `time` |
+| Filtering | `Scheduler.expand_recurring`, `Scheduler.get_tasks_by_category` | Keeps only tasks due today (`next_due <= date`); narrows a plan to one category |
+| Conflict handling | `Scheduler.resolve_conflicts`, `Scheduler.apply_owner_time` | Detects overlaps (higher priority keeps the slot); flags losers to the owner, who picks a new time (no double-booking) |
+| Recurring tasks | `Task.frequency` / `next_due`, `Pet.complete_task`, `Task.generate_next_occurrence` | Completing a task regenerates the next occurrence `frequency` days out |
+| Availability | `Owner.get_free_slots`, `Scheduler.generate_daily_plan` | Flexible tasks nudge into free windows around the owner's busy blocks |
 
 ## 📸 Demo Walkthrough
 
