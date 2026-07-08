@@ -168,12 +168,20 @@ $ python -m pytest
 platform win32 -- Python 3.13.7, pytest-9.0.3, pluggy-1.6.0
 rootdir: C:\Users\shuma\Desktop\AI 110\ai110-project2
 plugins: anyio-4.13.0
-collected 2 items
+collected 20 items
 
-tests\test_pawpal.py ..                                                  [100%]
+tests\test_pawpal.py ..                                                  [ 10%]
+tests\test_scheduler.py ..................                               [100%]
 
-============================== 2 passed in 0.07s ==============================
+============================= 20 passed in 0.04s ==============================
 ```
+
+`test_pawpal.py` holds the two basic Step 3 tests (task completion, task
+addition). `test_scheduler.py` covers the important scheduling behaviors:
+care_needs merging (species defaults, fallback, list-stacking, scalar
+override, case-insensitive lookup), priority sorting, fixed/flexible
+placement, owner availability, conflict detection + `apply_owner_time`'s
+no-double-booking guarantee, and recurrence via `next_due`.
 
 ## 📐 Smarter Scheduling
 

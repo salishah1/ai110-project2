@@ -230,12 +230,16 @@ class Pet:
         """Controlled way to update a single entry in care_needs."""
         self.care_needs[key] = value
 
-    def get_default_tasks(self) -> List[Task]:
+    def get_default_tasks(self, start_date: Optional[date] = None) -> List[Task]:
         """
         Derives suggested Task objects directly from this pet's care_needs —
-        one task per relevant entry. Returns suggestions only; the caller
-        decides what to actually add via add_task().
+        one task per relevant entry. Each suggestion's next_due is set to
+        start_date (today if omitted) so recurring tasks are due starting
+        that day and then honor their frequency — not treated as due every
+        day. Returns suggestions only; the caller decides what to actually
+        add via add_task().
         """
+        start_date = start_date or date.today()
         suggestions: List[Task] = []
 
         def suggest(key, description, category, duration, priority, at, freq):
@@ -250,6 +254,7 @@ class Pet:
                     time=at,
                     is_flexible=True,
                     frequency=freq,
+                    next_due=start_date,
                 )
             )
 
