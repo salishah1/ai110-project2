@@ -35,7 +35,7 @@ When two fixed-time tasks genuinely collide, the scheduler does **not** try to a
 
 **a. How you used AI**
 
-I used AI throughout: brainstorming the class breakdown, pressure-testing the design against concrete pet examples (an overweight cat, an allergy, a sugar glider), generating the class skeleton, implementing the scheduling logic, writing the tests, and hunting for bugs before I trusted it. The most helpful prompts were concrete ("is this a *fact* about the pet or a *task* on a schedule?"), scenario-driven ("run this design through a busy day"), and adversarial ("what's missing or broken before I write tests?").
+I used AI throughout: brainstorming the class breakdown, pressure-testing the design against concrete pet examples (an overweight cat, an allergy, a sugar glider), generating the class skeleton, implementing the scheduling logic, writing the tests, and hunting for bugs before I trusted it. The most helpful prompts were concrete ("is this a *fact* about the pet or a *task* on a schedule?"), scenario-driven ("run this design through a busy day"), and adversarial ("what's missing or broken before I write tests?"). The features that mattered most were inline edits across multiple files at once (e.g. wiring `mark_complete` → `generate_next_occurrence` touched Task *and* Pet), running the CLI/pytest to verify, and having the assistant critique its own output. Keeping a **separate chat session per phase** (design vs. algorithms vs. testing) kept context focused — the algorithm chat wasn't polluted by early design debates, so its suggestions stayed on-topic.
 
 **b. Judgment and verification**
 
@@ -67,4 +67,4 @@ I'd read the full assignment spec before designing so I didn't restructure twice
 
 **c. Key takeaway**
 
-The best decisions came from holding two lenses at once — clean, non-redundant code *and* a real pet owner's experience. And working with AI, the real skill is verification: it's a fast collaborator, but the recurring-task bug slipped through plausible-looking code and only surfaced because I ran it and wrote tests. Trust, but check.
+The best decisions came from holding two lenses at once — clean, non-redundant code *and* a real pet owner's experience. And working with AI, the real skill is verification: it's a fast collaborator, but the recurring-task bug slipped through plausible-looking code and only surfaced because I ran it and wrote tests. Trust, but check. Being the "lead architect" meant I owned the decisions — what belongs in `care_needs`, when to reject a suggestion, which tradeoffs to accept — while the AI accelerated the typing and surfaced options; the direction and the final call stayed mine.

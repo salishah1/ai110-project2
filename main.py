@@ -168,6 +168,17 @@ def main() -> None:
         for line in scheduler.get_plan_view():
             print(f"  {line}")
 
+    # --- Sorting & filtering (Scheduler.sort_by_time / filter_by_status,
+    #     Owner.get_tasks_for_pet) ---
+    all_tasks = owner.get_all_tasks()
+    print("\nAll tasks earliest-first (sort_by_time), first 5:")
+    for t in scheduler.sort_by_time(all_tasks)[:5]:
+        print(f"  {t.time.strftime('%H:%M')} {t.description}")
+    pending = scheduler.filter_by_status(all_tasks, completed=False)
+    done = scheduler.filter_by_status(all_tasks, completed=True)
+    print(f"Status filter -> pending: {len(pending)}, completed: {len(done)}")
+    print(f"Pet filter -> Biscuit has {len(owner.get_tasks_for_pet('Biscuit'))} task(s)")
+
     # --- Recurrence: completing a recurring task regenerates the next one ---
     walk = next(t for t in biscuit.tasks if t.category == "walk")
     print(f"\nComplete '{walk.description}' (repeats every {walk.frequency} day)...")

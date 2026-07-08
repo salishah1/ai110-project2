@@ -374,6 +374,14 @@ class Owner:
             all_tasks.extend(pet.tasks)
         return all_tasks
 
+    def get_tasks_for_pet(self, pet_name: str) -> List[Task]:
+        """Returns the combined tasks of every pet whose name matches (case-insensitive)."""
+        tasks: List[Task] = []
+        for pet in self.pets:
+            if pet.name.lower() == pet_name.lower():
+                tasks.extend(pet.tasks)
+        return tasks
+
     def edit(self, **fields) -> None:
         """Updates the owner's own info (name, availability) in place."""
         for key, value in fields.items():
@@ -419,6 +427,14 @@ class Scheduler:
             tasks,
             key=lambda t: (_PRIORITY_RANK.get(t.priority, 1), t.time),
         )
+
+    def sort_by_time(self, tasks: List[Task]) -> List[Task]:
+        """Returns the tasks in chronological order by their `time` attribute."""
+        return sorted(tasks, key=lambda t: t.time)
+
+    def filter_by_status(self, tasks: List[Task], completed: bool = False) -> List[Task]:
+        """Filters a task list by completion status (completed=True for done tasks)."""
+        return [t for t in tasks if t.completed == completed]
 
     def _to_dt(self, t: time) -> datetime:
         """Combines a time-of-day with the plan's date into a full datetime."""
@@ -553,6 +569,18 @@ class Scheduler:
     def get_tasks_by_category(self, category: str) -> List[Task]:
         """Filters current_plan down to a single category."""
         return [t for t in self.current_plan if t.category == category]
+
+    def get_conflict_warnings(self) -> List[str]:
+        """
+        Lightweight, human-readable warnings for the tasks flagged in the last
+        plan's conflicts. Returns strings (never raises) so the caller can just
+        display them.
+        """
+        return [
+            f"Conflict: '{t.description}' couldn't be placed at "
+            f"{t.time.strftime('%H:%M')} — pick a new time."
+            for t in self.pending_conflicts
+        ]
 
     def get_plan_view(self) -> list:
         """Formats current_plan for display, sorted by scheduled time."""

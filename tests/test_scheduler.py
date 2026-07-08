@@ -122,6 +122,30 @@ def test_get_free_slots_subtracts_busy_blocks():
 
 # --- Scheduler: sorting & placement -----------------------------------------
 
+def test_sort_by_time_is_chronological():
+    sched = Scheduler(date=DAY, owner=Owner("o", "x"))
+    tasks = [make_task("noon", time(12, 0)), make_task("morning", time(7, 0)), make_task("eve", time(20, 0))]
+    assert [t.task_id for t in sched.sort_by_time(tasks)] == ["morning", "noon", "eve"]
+
+
+def test_filter_by_status():
+    sched = Scheduler(date=DAY, owner=Owner("o", "x"))
+    a, b = make_task("a", time(8, 0)), make_task("b", time(9, 0))
+    b.completed = True
+    assert [t.task_id for t in sched.filter_by_status([a, b], completed=False)] == ["a"]
+    assert [t.task_id for t in sched.filter_by_status([a, b], completed=True)] == ["b"]
+
+
+def test_get_tasks_for_pet_filters_by_name():
+    owner = Owner("o", "x")
+    rex, milo = Pet("p1", "Rex", "dog"), Pet("p2", "Milo", "cat")
+    owner.add_pet(rex)
+    owner.add_pet(milo)
+    rex.add_task(make_task("a", time(8, 0)))
+    milo.add_task(make_task("b", time(9, 0)))
+    assert {t.task_id for t in owner.get_tasks_for_pet("Rex")} == {"a"}
+
+
 def test_sort_by_priority_then_time():
     sched = Scheduler(date=DAY, owner=Owner("o", "x"))
     tasks = [

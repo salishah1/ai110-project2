@@ -22,6 +22,16 @@ Your final app should:
 - Display the plan clearly (and ideally explain the reasoning)
 - Include tests for the most important scheduling behaviors
 
+## ✨ Features
+
+- **Species-aware pet profiles** — each pet's `care_needs` is seeded from a species lookup (dog/cat/fish/bird) or a generic fallback, then merged with individual facts (list extras stack, scalars override).
+- **Suggested tasks from care profile** — `get_default_tasks()` derives feeding, walks, litter, habitat cleaning, temperature checks, nail trims, enrichment, restocks, vet visits, and condition care straight from `care_needs`.
+- **Sorting** — by priority then time (`sort_by_priority`) and chronologically (`sort_by_time`).
+- **Filtering** — by completion status (`filter_by_status`), by pet (`Owner.get_tasks_for_pet`), and by category (`get_tasks_by_category`).
+- **Daily recurrence** — recurring tasks carry a `next_due`; completing one regenerates the next occurrence `frequency` days out.
+- **Conflict detection & resolution** — overlapping fixed tasks are flagged (higher priority keeps the slot) with human-readable warnings; the owner reschedules via `apply_owner_time` (no double-booking).
+- **Availability-aware planning** — flexible tasks nudge into free windows around the owner's busy blocks.
+
 ## Getting started
 
 ### Setup
@@ -194,17 +204,23 @@ tests\test_scheduler.py ..................                               [100%]
 `test_pawpal.py` holds the two basic Step 3 tests (task completion, task
 addition). `test_scheduler.py` covers the important scheduling behaviors:
 care_needs merging (species defaults, fallback, list-stacking, scalar
-override, case-insensitive lookup), priority sorting, fixed/flexible
-placement, owner availability, conflict detection + `apply_owner_time`'s
-no-double-booking guarantee, and recurrence via `next_due`.
+override, case-insensitive lookup), priority and chronological sorting,
+filtering (status / pet / category), fixed/flexible placement, owner
+availability, conflict detection + `apply_owner_time`'s no-double-booking
+guarantee, and recurrence via `next_due`.
+
+**Confidence level:** ⭐⭐⭐⭐☆ (4 / 5) — the 21 tests cover the core scheduling
+behaviors and all pass. Docked one star for edge cases not yet tested
+(multiple busy blocks in a day, tasks crossing midnight, and multi-day
+recurrence runs).
 
 ## 📐 Smarter Scheduling
 
 | Feature | Method(s) | Notes |
 |---------|-----------|-------|
-| Task sorting | `Scheduler.sort_by_priority` | Orders by priority (high > medium > low), then earlier `time` |
-| Filtering | `Scheduler.expand_recurring`, `Scheduler.get_tasks_by_category` | Keeps only tasks due today (`next_due <= date`); narrows a plan to one category |
-| Conflict handling | `Scheduler.resolve_conflicts`, `Scheduler.apply_owner_time` | Detects overlaps (higher priority keeps the slot); flags losers to the owner, who picks a new time (no double-booking) |
+| Task sorting | `Scheduler.sort_by_priority`, `Scheduler.sort_by_time` | Order by priority (high > medium > low) then time; or purely chronologically |
+| Filtering | `Scheduler.filter_by_status`, `Owner.get_tasks_for_pet`, `Scheduler.get_tasks_by_category`, `Scheduler.expand_recurring` | By completion status, by pet name, by category; and by due-today (`next_due <= date`) |
+| Conflict handling | `Scheduler.resolve_conflicts`, `Scheduler.get_conflict_warnings`, `Scheduler.apply_owner_time` | Detects overlaps (higher priority keeps the slot), emits warning strings, and lets the owner reschedule (no double-booking) |
 | Recurring tasks | `Task.frequency` / `next_due`, `Pet.complete_task`, `Task.generate_next_occurrence` | Completing a task regenerates the next occurrence `frequency` days out |
 | Availability | `Owner.get_free_slots`, `Scheduler.generate_daily_plan` | Flexible tasks nudge into free windows around the owner's busy blocks |
 
