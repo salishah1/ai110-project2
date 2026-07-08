@@ -120,6 +120,15 @@ def main() -> None:
     print_care_needs(eomuk)
     print()
 
+    # get_default_tasks() turns a pet's care profile into suggested starter
+    # tasks — what the app would offer the owner to review/accept when a pet
+    # is added (and what will feed the "suggested tasks" step in the UI).
+    print("=== Suggested starter tasks for Eomuk (derived from care_needs) ===")
+    for t in eomuk.get_default_tasks(start_date=today):
+        freq = f"every {t.frequency}d" if t.frequency else "one-time"
+        print(f"  {t.time.strftime('%H:%M')} {t.description} [{t.category}] ({freq})")
+    print()
+
     # The owner has a busy block midday (a meeting/lunch), keyed to today's
     # weekday — the Scheduler treats it as unavailable time.
     owner.availability = {today.strftime("%A").lower(): [(time(12, 0), time(13, 0))]}

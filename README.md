@@ -47,8 +47,10 @@ pip install -r requirements.txt
 Below is a real run of `python main.py` (the temporary CLI testing ground). It
 seeds owner Jordan with five pets — four common species plus Eomuk the sugar
 glider (deliberately not in `SPECIES_DEFAULTS`, to exercise `DEFAULT_FALLBACK`)
-— prints two pets' merged `care_needs`, honors the owner's busy hours, generates
-the day, resolves a scheduling conflict, and regenerates a recurring task:
+— prints two pets' merged `care_needs`, derives suggested starter tasks for a
+pet from its care profile (`get_default_tasks`), honors the owner's busy hours,
+generates the day, resolves a scheduling conflict, and regenerates a recurring
+task:
 
 ```text
 $ python main.py
@@ -82,6 +84,19 @@ $ python main.py
   vet_frequency_days: 180
   vet_notes: requires exotic-animal vet
   enrichment_note: daily bonding/pouch time
+
+=== Suggested starter tasks for Eomuk (derived from care_needs) ===
+  07:30 Feed Eomuk [feed] (every 1d)
+  10:00 Clean Eomuk's cage [grooming] (every 7d)
+  12:00 Check Eomuk's heating/temperature [maintenance] (every 1d)
+  19:00 Enrichment for Eomuk: daily bonding/pouch time [enrichment] (every 1d)
+  18:00 Restock food [restock_supply] (every 7d)
+  18:00 Restock glider diet mix [restock_supply] (every 7d)
+  18:00 Restock calcium supplement [restock_supply] (every 7d)
+  18:00 Restock pouch [restock_supply] (every 7d)
+  18:00 Restock climbing branches [restock_supply] (every 7d)
+  18:00 Restock exercise wheel [restock_supply] (every 7d)
+  10:00 Vet visit for Eomuk [vet] (every 180d)
 
 Owner busy today:  [('12:00', '13:00')]
 Owner free windows: [('00:00', '12:00'), ('13:00', '23:59')]

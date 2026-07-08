@@ -288,10 +288,20 @@ class Pet:
                 "habitat", f"Clean {self.name}'s {cn['habitat']}", "grooming",
                 20, "medium", time(10, 0), 7,
             )
+        if cn.get("needs_temperature_control"):
+            suggest(
+                "temperature", f"Check {self.name}'s heating/temperature", "maintenance",
+                5, "medium", time(12, 0), 1,
+            )
         if cn.get("needs_nail_trim"):
             suggest(
                 "nail-trim", f"Trim {self.name}'s nails", "grooming",
                 15, "low", time(11, 0), 30,
+            )
+        if cn.get("enrichment_note"):
+            suggest(
+                "enrichment", f"Enrichment for {self.name}: {cn['enrichment_note']}", "enrichment",
+                20, "medium", time(19, 0), 1,
             )
         for supply in cn.get("supplies", []):
             suggest(

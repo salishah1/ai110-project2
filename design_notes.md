@@ -55,7 +55,7 @@ One pet — its identity, its full care profile, and its own tasks.
 
 *Class-level:* `SPECIES_DEFAULTS` (dog, cat, fish, bird), `DEFAULT_FALLBACK` — used once, at creation, to seed `care_needs`. Species lookup is case-insensitive. Every species dict and the fallback share an identical set of keys, so `care_needs` has the same shape regardless of species.
 
-**Methods:** `add_task()`, `remove_task()`, `complete_task(task_id, on_date=None) → Task or None` (marks done and, if recurring, generates + adds the next occurrence), `add_condition()`, `remove_condition()`, `update_care_needs()`, `get_default_tasks() → list[Task]` (derives suggested tasks from the merged `care_needs` — feeding tasks per `feeding_frequency_per_day`, plus walks, litter, habitat cleaning, nail trims, supply restocks, vet visits, and health conditions as applicable)
+**Methods:** `add_task()`, `remove_task()`, `complete_task(task_id, on_date=None) → Task or None` (marks done and, if recurring, generates + adds the next occurrence), `add_condition()`, `remove_condition()`, `update_care_needs()`, `get_default_tasks(start_date=None) → list[Task]` (derives suggested tasks from the merged `care_needs` — feeding tasks per `feeding_frequency_per_day`, plus walks, litter, habitat cleaning, temperature checks, nail trims, enrichment, supply restocks, vet visits, and health conditions as applicable; each suggestion gets `next_due=start_date`)
 
 ### Owner
 Manages pets, exposes their combined workload.
