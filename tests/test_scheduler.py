@@ -57,6 +57,15 @@ def test_species_lookup_is_case_insensitive():
 
 # --- get_default_tasks sets next_due (the recurrence bug fix) ----------------
 
+def test_recurring_task_gets_next_due_at_creation():
+    """Central guard: any recurring task gets a starting next_due, wherever
+    it's created; one-time tasks keep next_due=None."""
+    weekly = make_task("weekly", time(8, 0), freq=7)  # next_due not provided
+    assert weekly.next_due is not None
+    one_time = make_task("bath", time(8, 0), freq=None)
+    assert one_time.next_due is None
+
+
 def test_default_tasks_get_starting_next_due():
     dog = Pet(pet_id="p", name="Rex", species="dog")
     suggestions = dog.get_default_tasks(start_date=DAY)

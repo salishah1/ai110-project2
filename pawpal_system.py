@@ -34,6 +34,17 @@ class Task:
     next_due: Optional[date] = None  # date this occurrence is due; None = due any day
     completed: bool = False
 
+    def __post_init__(self):
+        """
+        Give any recurring task (frequency set) a concrete starting next_due —
+        today if none was provided — so it honors its frequency instead of
+        looking due every day. One-time tasks (frequency=None) keep
+        next_due=None ("no fixed date, stays a to-do until done"). Central
+        guard so this holds no matter where a Task is created.
+        """
+        if self.frequency is not None and self.next_due is None:
+            self.next_due = date.today()
+
     def mark_complete(self) -> None:
         """Marks this task as done."""
         self.completed = True
